@@ -256,3 +256,26 @@ function createCustomBlocks(user, text) {
 
     return blocks;
 }
+
+function autoPostVote() {
+    const url = "https://slack.com/api/chat.postMessage";
+    const user = PropertiesService.getScriptProperties().getProperty("SLACK_BOT_USER");
+    const channelId = PropertiesService.getScriptProperties().getProperty("SLACK_CHANNEL_ID");
+    const blocks = createDefaultBlocks(user);
+
+    const headers = {
+        "Content-Type": "application/json; charset=utf-8",
+        "Authorization": "Bearer " + token
+    };
+    const payload = {
+        "channel": channelId,
+        "blocks": blocks
+    };
+    const params = {
+        "method": "POST",
+        "headers": headers,
+        "payload": JSON.stringify(payload)
+    };
+
+    UrlFetchApp.fetch(url, params);
+}
