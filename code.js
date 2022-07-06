@@ -5,7 +5,7 @@ function doPost(e) {
         // slackからのPOSTにpayloadがある場合
         updateVote(JSON.parse(e.parameter.payload))
     } else {
-        // /voteの実行にはPOSTにpayloadがない
+        // スラッシュコマンドの実行にはpayloadがない
         postVote(e.parameter);
     }
 
