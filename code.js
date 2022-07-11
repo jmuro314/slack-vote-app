@@ -51,16 +51,16 @@ function updateVote(json) {
     let blocks = json.message.blocks;
 
     // 投票人数を取得
-    const userNumber = blocks[actionIdx].text.text.slice(1, 2);
+    const userNumber = blocks[actionIdx].text.text.match(/\d+/)[0];
     if (blocks[actionIdx].text.text.indexOf(user) != -1) {
         // 既に投票されている場合、ユーザを削除して投票人数を減らす
         const reg = ", <@" + user + ">";
         blocks[actionIdx].text.text = blocks[actionIdx].text.text.replace(new RegExp(reg, "g"), "");
-        blocks[actionIdx].text.text = blocks[actionIdx].text.text.replace(/[0-9]/, Number(userNumber) - 1);
+        blocks[actionIdx].text.text = blocks[actionIdx].text.text.replace(/\d+/, Number(userNumber) - 1);
     } else {
         // まだ投票されていない場合、ユーザを追加し投票人数を増やす
         blocks[actionIdx].text.text += ", <@" + user + ">";
-        blocks[actionIdx].text.text = blocks[actionIdx].text.text.replace(/[0-9]/, Number(userNumber) + 1);
+        blocks[actionIdx].text.text = blocks[actionIdx].text.text.replace(/\d+/, Number(userNumber) + 1);
     }
 
     const headers = {
