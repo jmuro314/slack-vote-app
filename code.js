@@ -3,21 +3,30 @@ const token = PropertiesService.getScriptProperties().getProperty("SLACK_TOKEN")
 function doPost(e) {
   if (e["parameter"]["payload"]) {
     const json = JSON.parse(e["parameter"]["payload"]);
-    Logger.log(e["parameter"]["payload"]);
+
     if (json["type"] == "block_actions" && json["message"]) {
-      Logger.log("update");
+      // 投票をupdateする
       updateVote(json);
+
+    } else if (json["type"] == "block_actions" && json["actions"][0]["action_id"] == "add_option") {
+      // モーダルでの選択肢を増やす
+      updateModal(json);
+
     } else if (json["type"] == "shortcut") {
-      Logger.log("shortcut");
+      // shortcutで投票を作成する
       createModalByShortcut(json);
+
     } else if (json["type"] == "view_submission") {
-      Logger.log("view_submission");
+      // モーダルから投票を作成する
       createVoteByModal(json);
+
     }
   } else {
-    Logger.log("slash command");
+    // slash commandで投票を作成する
     createVoteBySlash(e["parameter"]);
   }
+
+  // slackに警告が出るため空文字を返す
   return ContentService.createTextOutput("");
 }
 
@@ -25,9 +34,9 @@ function createVoteBySlash(json) {
   const url = "https://slack.com/api/chat.postMessage";
   const channelId = json["channel_id"];
   const user = json["user_id"];
-
   const textArray = json["text"].split(",");
   let blocks = "";
+
   if (textArray[0] == "") {
     blocks = createDefaultBlocks(user);
   } else {
@@ -170,10 +179,12 @@ function createVoteByModal(json) {
   const user = json["user"]["id"];
   const blocksLength = Object.keys(json["view"]["blocks"]).length;
   let blockIdArray = [];
+
   // 最初と最後はいらない
   for (let i = 1; i < blocksLength - 1; i++) {
     blockIdArray.push(json["view"]["blocks"][i]["block_id"]);
   }
+
   const channelId = json["view"]["state"]["values"][blockIdArray[0]]["select_channel"]["selected_conversation"];
   const title = json["view"]["state"]["values"][blockIdArray[1]]["title"]["value"];
   let textArray = [title];
@@ -183,11 +194,60 @@ function createVoteByModal(json) {
     }
     textArray.push(json["view"]["state"]["values"][blockId]["options"]["value"]);
   });
+
   const blocks = createCustomBlocks(user, textArray);
 
   const payload = {
     "channel": channelId,
     "blocks": blocks
+  };
+
+  postToSlack(url, payload);
+}
+
+function updateModal(json) {
+  const url = "https://slack.com/api/views.update";
+  const viewId = json["view"]["id"];
+  let blocks = json["view"]["blocks"];
+  const option = {
+    "type": "input",
+    "element": {
+      "type": "plain_text_input",
+      "action_id": "options"
+    },
+    "label": {
+      "type": "plain_text",
+      "text": "選択肢",
+      "emoji": true
+    }
+  }
+  let modal = {
+    "type": "modal",
+    "callback_id": "modal",
+    "title": {
+      "type": "plain_text",
+      "text": "Vote",
+      "emoji": true
+    },
+    "submit": {
+      "type": "plain_text",
+      "text": "送信",
+      "emoji": true
+    },
+    "close": {
+      "type": "plain_text",
+      "text": "キャンセル",
+      "emoji": true
+    },
+    "blocks": []
+  };
+
+  blocks.splice(-1, 0, option);
+  modal["blocks"] = blocks;
+
+  const payload = {
+    "view": modal,
+    "view_id": viewId
   };
 
   postToSlack(url, payload);
