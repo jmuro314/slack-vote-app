@@ -9,19 +9,19 @@ function doPost(e) {
       updateVote(json);
     } else if (json["type"] == "shortcut") {
       Logger.log("shortcut");
-      postModal(json);
+      createModalByShortcut(json);
     } else if (json["type"] == "view_submission") {
       Logger.log("view_submission");
-      postFromModal(json);
+      createVoteByModal(json);
     }
   } else {
     Logger.log("slash command");
-    postVote(e["parameter"]);
+    createVoteBySlash(e["parameter"]);
   }
   return ContentService.createTextOutput("");
 }
 
-function postVote(json) {
+function createVoteBySlash(json) {
   const url = "https://slack.com/api/chat.postMessage";
   const channelId = json["channel_id"];
   const user = json["user_id"];
@@ -34,21 +34,12 @@ function postVote(json) {
     blocks = createCustomBlocks(user, textArray);
   }
 
-  const headers = {
-    "Content-Type": "application/json; charset=utf-8",
-    "Authorization": "Bearer " + token
-  };
   const payload = {
     "channel": channelId,
     "blocks": blocks
   };
-  const params = {
-    "method": "POST",
-    "headers": headers,
-    "payload": JSON.stringify(payload)
-  };
 
-  UrlFetchApp.fetch(url, params);
+  postToSlack(url, payload);
 }
 
 function updateVote(json) {
@@ -72,14 +63,140 @@ function updateVote(json) {
     blocks[actionIdx]["text"]["text"] = blocks[actionIdx]["text"]["text"].replace(/\d+/, Number(userNumber) + 1);
   }
 
-  const headers = {
-    "Content-Type": "application/json; charset=utf-8",
-    "Authorization": "Bearer " + token
-  };
   const payload = {
     "channel": channelId,
     "ts": ts,
     "blocks": blocks
+  };
+
+  postToSlack(url, payload);
+}
+
+function createModalByShortcut(json) {
+  const url = "https://slack.com/api/views.open";
+  const triggerId = json["trigger_id"];
+  const modal = {
+    "type": "modal",
+    "callback_id": "modal",
+    "title": {
+      "type": "plain_text",
+      "text": "Vote",
+      "emoji": true
+    },
+    "submit": {
+      "type": "plain_text",
+      "text": "送信",
+      "emoji": true
+    },
+    "close": {
+      "type": "plain_text",
+      "text": "キャンセル",
+      "emoji": true
+    },
+    "blocks": [
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "*チャンネル*"
+        }
+      },
+      {
+        "type": "actions",
+        "elements": [
+          {
+            "type": "conversations_select",
+            "placeholder": {
+              "type": "plain_text",
+              "text": "チャンネルを選ぶ",
+              "emoji": true
+            },
+            "action_id": "select_channel"
+          }
+        ]
+      },
+      {
+        "type": "input",
+        "element": {
+          "type": "plain_text_input",
+          "action_id": "title"
+        },
+        "label": {
+          "type": "plain_text",
+          "text": "タイトル",
+          "emoji": true
+        }
+      },
+      {
+        "type": "input",
+        "element": {
+          "type": "plain_text_input",
+          "action_id": "options"
+        },
+        "label": {
+          "type": "plain_text",
+          "text": "選択肢",
+          "emoji": true
+        }
+      },
+      {
+        "type": "actions",
+        "elements": [
+          {
+            "type": "button",
+            "text": {
+              "type": "plain_text",
+              "text": "選択肢を増やす",
+              "emoji": true
+            },
+            "value": "click_me_123",
+            "action_id": "add_option"
+          }
+        ]
+      }
+    ]
+  };
+
+  const payload = {
+    "trigger_id": triggerId,
+    "view": modal
+  };
+
+  postToSlack(url, payload);
+}
+
+function createVoteByModal(json) {
+  const url = "https://slack.com/api/chat.postMessage";
+  const user = json["user"]["id"];
+  const blocksLength = Object.keys(json["view"]["blocks"]).length;
+  let blockIdArray = [];
+  // 最初と最後はいらない
+  for (let i = 1; i < blocksLength - 1; i++) {
+    blockIdArray.push(json["view"]["blocks"][i]["block_id"]);
+  }
+  const channelId = json["view"]["state"]["values"][blockIdArray[0]]["select_channel"]["selected_conversation"];
+  const title = json["view"]["state"]["values"][blockIdArray[1]]["title"]["value"];
+  let textArray = [title];
+  blockIdArray.forEach((blockId, i) => {
+    if (i < 2) {
+      return
+    }
+    textArray.push(json["view"]["state"]["values"][blockId]["options"]["value"]);
+  });
+  const blocks = createCustomBlocks(user, textArray);
+
+  const payload = {
+    "channel": channelId,
+    "blocks": blocks
+  };
+
+  postToSlack(url, payload);
+}
+
+function postToSlack(url, payload) {
+  const headers = {
+    "Content-Type": "application/json; charset=utf-8",
+    "Authorization": "Bearer " + token
   };
   const params = {
     "method": "POST",
@@ -88,6 +205,59 @@ function updateVote(json) {
   };
 
   UrlFetchApp.fetch(url, params);
+}
+
+function createCustomBlocks(user, textArray) {
+  let blocks = [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "Title here"
+      }
+    }
+  ];
+  const footer = {
+    "type": "context",
+    "elements": [
+      {
+        "type": "mrkdwn",
+        "text": "create by <@" + user + ">"
+      }
+    ]
+  };
+  let option = {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "`0` option"
+    },
+    "accessory": {
+      "type": "button",
+      "text": {
+        "type": "plain_text",
+        "text": "1",
+        "emoji": true
+      },
+      "action_id": "1"
+    }
+  };
+
+  textArray.forEach((value, i) => {
+    if (i == 0) {
+      blocks[i]["text"]["text"] = value;
+      return;
+    }
+    option["text"]["text"] = "`0` " + value;
+    option["accessory"]["text"]["text"] = String(i);
+    option["accessory"]["action_id"] = String(i);
+    let optionDeepCopy = JSON.parse(JSON.stringify(option));
+    blocks.push(optionDeepCopy);
+  });
+
+  blocks.push(footer);
+
+  return blocks;
 }
 
 function createDefaultBlocks(user) {
@@ -207,196 +377,4 @@ function createDefaultBlocks(user) {
   ];
 
   return blocks;
-}
-
-function createCustomBlocks(user, textArray) {
-  let blocks = [
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "Title here"
-      }
-    }
-  ];
-  const footer = {
-    "type": "context",
-    "elements": [
-      {
-        "type": "mrkdwn",
-        "text": "create by <@" + user + ">"
-      }
-    ]
-  };
-  let option = {
-    "type": "section",
-    "text": {
-      "type": "mrkdwn",
-      "text": "`0` option"
-    },
-    "accessory": {
-      "type": "button",
-      "text": {
-        "type": "plain_text",
-        "text": "1",
-        "emoji": true
-      },
-      "action_id": "1"
-    }
-  };
-
-  textArray.forEach((value, i) => {
-    if (i == 0) {
-      blocks[i]["text"]["text"] = value;
-      return;
-    }
-    option["text"]["text"] = "`0` " + value;
-    option["accessory"]["text"]["text"] = String(i);
-    option["accessory"]["action_id"] = String(i);
-    let deep = JSON.parse(JSON.stringify(option));
-    blocks.push(deep);
-  });
-
-  blocks.push(footer);
-
-  return blocks;
-}
-
-function postModal(json) {
-  const url = "https://slack.com/api/views.open";
-  const triggerId = json["trigger_id"];
-  const modal = {
-    "type": "modal",
-    "callback_id": "modal",
-    "title": {
-      "type": "plain_text",
-      "text": "Vote",
-      "emoji": true
-    },
-    "submit": {
-      "type": "plain_text",
-      "text": "送信",
-      "emoji": true
-    },
-    "close": {
-      "type": "plain_text",
-      "text": "キャンセル",
-      "emoji": true
-    },
-    "blocks": [
-      {
-        "type": "section",
-        "text": {
-          "type": "mrkdwn",
-          "text": "*チャンネル*"
-        }
-      },
-      {
-        "type": "actions",
-        "elements": [
-          {
-            "type": "conversations_select",
-            "placeholder": {
-              "type": "plain_text",
-              "text": "チャンネルを選ぶ",
-              "emoji": true
-            },
-            "action_id": "select_channel"
-          }
-        ]
-      },
-      {
-        "type": "input",
-        "element": {
-          "type": "plain_text_input",
-          "action_id": "title"
-        },
-        "label": {
-          "type": "plain_text",
-          "text": "タイトル",
-          "emoji": true
-        }
-      },
-      {
-        "type": "input",
-        "element": {
-          "type": "plain_text_input",
-          "action_id": "options"
-        },
-        "label": {
-          "type": "plain_text",
-          "text": "選択肢",
-          "emoji": true
-        }
-      },
-      {
-        "type": "actions",
-        "elements": [
-          {
-            "type": "button",
-            "text": {
-              "type": "plain_text",
-              "text": "選択肢を増やす",
-              "emoji": true
-            },
-            "value": "click_me_123",
-            "action_id": "add_option"
-          }
-        ]
-      }
-    ]
-  };
-
-  const headers = {
-    "Content-Type": "application/json; charset=utf-8",
-    "Authorization": "Bearer " + token
-  };
-  const payload = {
-    "trigger_id": triggerId,
-    "view": modal
-  };
-  const params = {
-    "method": "POST",
-    "headers": headers,
-    "payload": JSON.stringify(payload)
-  };
-
-  UrlFetchApp.fetch(url, params);
-}
-
-function postFromModal(json) {
-  const url = "https://slack.com/api/chat.postMessage";
-  const user = json["user"]["id"];
-  const blocksLength = Object.keys(json["view"]["blocks"]).length;
-  let blockIdArray = [];
-  // 最初と最後はいらない
-  for (let i = 1; i < blocksLength - 1; i++) {
-    blockIdArray.push(json["view"]["blocks"][i]["block_id"]);
-  }
-  const channelId = json["view"]["state"]["values"][blockIdArray[0]]["select_channel"]["selected_conversation"];
-  const title = json["view"]["state"]["values"][blockIdArray[1]]["title"]["value"];
-  let textArray = [title];
-  blockIdArray.forEach((blockId, i) => {
-    if (i < 2) {
-      return
-    }
-    textArray.push(json["view"]["state"]["values"][blockId]["options"]["value"]);
-  });
-  const blocks = createCustomBlocks(user, textArray);
-  
-  const headers = {
-    "Content-Type": "application/json; charset=utf-8",
-    "Authorization": "Bearer " + token
-  };
-  const payload = {
-    "channel": channelId,
-    "blocks": blocks
-  };
-  const params = {
-    "method": "POST",
-    "headers": headers,
-    "payload": JSON.stringify(payload)
-  };
-
-  UrlFetchApp.fetch(url, params);
 }
