@@ -1,5 +1,3 @@
-const token = PropertiesService.getScriptProperties().getProperty("SLACK_TOKEN");
-
 function doPost(e) {
   if (e["parameter"]["payload"]) {
     const json = JSON.parse(e["parameter"]["payload"]);
@@ -256,6 +254,8 @@ function updateModal(json) {
 }
 
 function postToSlack(url, payload) {
+  const token = PropertiesService.getScriptProperties().getProperty("SLACK_TOKEN");
+
   const headers = {
     "Content-Type": "application/json; charset=utf-8",
     "Authorization": "Bearer " + token
