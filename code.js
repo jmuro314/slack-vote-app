@@ -53,24 +53,25 @@ function createVoteBySlash(json) {
 
 function updateVote(json) {
   const url = "https://slack.com/api/chat.update";
-  const user = json["user"]["id"];
+  const user = "<@" + json["user"]["id"] + ">";
   const actionIdx = Number(json["actions"][0]["action_id"]);
   const channelId = json["channel"]["id"];
   const ts = json["message"]["ts"];
   let blocks = json["message"]["blocks"];
+  const optionText = blocks[actionIdx]["text"]["text"];
+  const optionTitle = optionText.substring(optionText.indexOf(" ") + 1, optionText.indexOf("\n") + 1);  // \nでindexが1
+  let userArray = optionText.substring(optionText.indexOf("\n") + 1).split(", ");  // 空文字の場合、1つの空文字を含む配列を返す
+  userArray = userArray.filter(Boolean);  // 空要素削除
 
-  // 投票人数を取得
-  const userNumber = blocks[actionIdx]["text"]["text"].match(/\d+/)[0];
-  if (blocks[actionIdx]["text"]["text"].indexOf(user) != -1) {
-    // 既に投票されている場合、ユーザを削除して投票人数を減らす
-    const reg = ", <@" + user + ">";
-    blocks[actionIdx]["text"]["text"] = blocks[actionIdx]["text"]["text"].replace(new RegExp(reg, "g"), "");
-    blocks[actionIdx]["text"]["text"] = blocks[actionIdx]["text"]["text"].replace(/\d+/, Number(userNumber) - 1);
+  if (userArray.includes(user)) {
+    userArray = userArray.filter(function (value) {
+      return value != user;
+    });
   } else {
-    // まだ投票されていない場合、ユーザを追加し投票人数を増やす
-    blocks[actionIdx]["text"]["text"] += ", <@" + user + ">";
-    blocks[actionIdx]["text"]["text"] = blocks[actionIdx]["text"]["text"].replace(/\d+/, Number(userNumber) + 1);
+    userArray.push(user);
   }
+  const userNumber = userArray.length;
+  blocks[actionIdx]["text"]["text"] = "`" + userNumber + "` " + optionTitle + userArray.join(", ");
 
   const payload = {
     "channel": channelId,
@@ -242,6 +243,7 @@ function updateModal(json) {
     "blocks": []
   };
 
+  // optionを追加
   blocks.splice(-1, 0, option);
   modal["blocks"] = blocks;
 
@@ -290,7 +292,7 @@ function createCustomBlocks(user, textArray) {
     "type": "section",
     "text": {
       "type": "mrkdwn",
-      "text": "`0` option"
+      "text": "`0` option\n"
     },
     "accessory": {
       "type": "button",
@@ -308,7 +310,7 @@ function createCustomBlocks(user, textArray) {
       blocks[i]["text"]["text"] = value;
       return;
     }
-    option["text"]["text"] = "`0` " + value;
+    option["text"]["text"] = "`0` " + value + "\n";
     option["accessory"]["text"]["text"] = String(i);
     option["accessory"]["action_id"] = String(i);
     let optionDeepCopy = JSON.parse(JSON.stringify(option));
@@ -334,7 +336,7 @@ function createDefaultBlocks(user) {
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": "`0` 月"
+        "text": "`0` 月\n"
       },
       "accessory": {
         "type": "button",
@@ -350,7 +352,7 @@ function createDefaultBlocks(user) {
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": "`0` 火"
+        "text": "`0` 火\n"
       },
       "accessory": {
         "type": "button",
@@ -366,7 +368,7 @@ function createDefaultBlocks(user) {
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": "`0` 水"
+        "text": "`0` 水\n"
       },
       "accessory": {
         "type": "button",
@@ -382,7 +384,7 @@ function createDefaultBlocks(user) {
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": "`0` 木"
+        "text": "`0` 木\n"
       },
       "accessory": {
         "type": "button",
@@ -398,7 +400,7 @@ function createDefaultBlocks(user) {
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": "`0` 金"
+        "text": "`0` 金\n"
       },
       "accessory": {
         "type": "button",
@@ -414,7 +416,7 @@ function createDefaultBlocks(user) {
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": "`0` 欠席"
+        "text": "`0` 欠席\n"
       },
       "accessory": {
         "type": "button",
