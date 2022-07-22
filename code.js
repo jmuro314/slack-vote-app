@@ -321,12 +321,13 @@ function createCustomBlocks(user, textArray) {
 }
 
 function createDefaultBlocks(user) {
+  const title = PropertiesService.getScriptProperties().getProperty("VOTE_DEFAULT_TITLE");
   const blocks = [
     {
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": "Title here"
+        "text": title
       }
     },
     {
